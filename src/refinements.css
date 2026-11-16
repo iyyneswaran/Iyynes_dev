@@ -1,0 +1,30 @@
+/* Keep the welcome greeting to its two deliberate lines at every breakpoint. */
+.welcome-card h1 {
+  font-size: 28px;
+  line-height: 1.13;
+  letter-spacing: -1px;
+  white-space: nowrap;
+}
+.reset-discoveries {
+  font-size: 10px;
+  color: #8e9a78;
+  border-bottom: 1px dashed #bcc6a3;
+  padding: 3px 0;
+}
+@media (max-width: 1250px) {
+  .welcome-card h1 {
+    font-size: 25px;
+    letter-spacing: -1px;
+  }
+}
+@media (max-width: 980px) {
+  .welcome-card h1 {
+    font-size: 23px;
+  }
+}
+@media (max-width: 700px) {
+  .welcome-card h1 {
+    font-size: 21px;
+    letter-spacing: -0.8px;
+  }
+}
