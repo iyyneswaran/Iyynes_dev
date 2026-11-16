@@ -11,6 +11,37 @@ export const createGrid = (w = WORLD_W, h = WORLD_H): Grid =>
     { length: Math.ceil(h / CELL) },
     () => new Uint8Array(Math.ceil(w / CELL)),
   );
+/** Find the closest dry/open cell when a seasonal transition makes a tile solid. */
+export function nearestWalkable(g: Grid, point: Point): Point | null {
+  const cols = g[0].length,
+    rows = g.length;
+  const x = Math.max(0, Math.min(cols - 1, Math.floor(point.x / CELL))),
+    y = Math.max(0, Math.min(rows - 1, Math.floor(point.y / CELL)));
+  const queue = [y * cols + x],
+    seen = new Set(queue);
+  let head = 0;
+  while (head < queue.length) {
+    const k = queue[head++],
+      cx = k % cols,
+      cy = Math.floor(k / cols);
+    if (!g[cy][cx]) return { x: cx * CELL + CELL / 2, y: cy * CELL + CELL / 2 };
+    for (const [dx, dy] of [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ]) {
+      const nx = cx + dx,
+        ny = cy + dy,
+        nk = ny * cols + nx;
+      if (nx >= 0 && ny >= 0 && nx < cols && ny < rows && !seen.has(nk)) {
+        seen.add(nk);
+        queue.push(nk);
+      }
+    }
+  }
+  return null;
+}
 export function blockRect(g: Grid, x: number, y: number, w: number, h: number) {
   for (
     let row = Math.max(0, Math.floor(y / CELL));
@@ -30,7 +61,7 @@ export function findPath(g: Grid, from: Point, to: Point): Point[] {
     s = [Math.floor(from.x / CELL), Math.floor(from.y / CELL)],
     e = [Math.floor(to.x / CELL), Math.floor(to.y / CELL)];
   const valid = (x: number, y: number) =>
-    x >= 0 && y >= 0 && x < cols && y < rows && !g[y][x],
+      x >= 0 && y >= 0 && x < cols && y < rows && !g[y][x],
     key = (x: number, y: number) => y * cols + x;
   if (!valid(...(s as [number, number])) || !valid(...(e as [number, number])))
     return [];

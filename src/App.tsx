@@ -12,6 +12,10 @@ import {
   MapPin,
   Minus,
   Sun,
+  Moon,
+  Sunrise,
+  ChevronDown,
+  Flame,
   Volume2,
   VolumeX,
   X,
@@ -20,6 +24,8 @@ import { destinations, PortfolioContent } from "./content";
 import type { DestinationId } from "./content";
 import type { VillageScene, WorldState } from "./GameWorld";
 import { audio } from "./audio";
+import { initialClimate, SEASONS, seasonDetails } from "./seasons";
+import type { ClimateState, Season } from "./seasons";
 
 const initial: WorldState = {
   x: 504,
@@ -37,6 +43,7 @@ export default function App() {
     help = useRef<HTMLDialogElement>(null),
     toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [state, setState] = useState(initial),
+    [climate, setClimate] = useState<ClimateState>(initialClimate),
     [ready, setReady] = useState(false),
     [loadError, setLoadError] = useState(""),
     [welcome, setWelcome] = useState(true),
@@ -86,6 +93,7 @@ export default function App() {
           onEnter: enter,
           onTrack: setTracked,
           onToast: notify,
+          onClimate: setClimate,
           onReady: (map) => {
             mapImage.current = map;
             setReady(true);
@@ -152,7 +160,7 @@ export default function App() {
     ctx.fillRect(state.x * sx - 3, state.y * sy - 3, 6, 6);
     ctx.fillStyle = "#b76047";
     ctx.fillRect(state.x * sx - 1, state.y * sy - 1, 2, 2);
-  }, [state, ready, visited, tracked, mapExpanded]);
+  }, [state, ready, visited, tracked, mapExpanded, climate.season]);
   const closePanel = () => {
     setSelected(null);
     audio.play("close");
@@ -178,6 +186,8 @@ export default function App() {
   const nearby = destinations.find((d) => d.id === state.nearby),
     target = destinations.find((d) => d.id === tracked),
     place = destinations.find((d) => d.id === selected);
+  const TimeIcon =
+    climate.phase === "Night" ? Moon : climate.phase === "Day" ? Sun : Sunrise;
   return (
     <>
       <header className="site-header">
@@ -218,6 +228,8 @@ export default function App() {
         </div>
         <section
           className="world-frame"
+          data-season={climate.season}
+          data-phase={climate.phase.toLowerCase()}
           aria-label="Interactive pixel-art portfolio world"
         >
           <div
@@ -268,13 +280,76 @@ export default function App() {
               </div>
             </div>
           )}
-          <div className="world-overlay location-card">
-            <Sun className="sun-icon" size={27} />
-            <div>
+          <div
+            className="world-overlay climate-card"
+            aria-label="Village climate"
+          >
+            <div className="climate-place">
+              <Leaf size={12} />
               <b>GREENLEAF VILLAGE</b>
-              <span>A good day to explore.</span>
+              <i />
             </div>
-            <i className="weather-dot" />
+            <div className="climate-settings">
+              <label className="season-field">
+                <span>SEASON</span>
+                <span className="season-select">
+                  <span aria-hidden="true">
+                    {seasonDetails[climate.season].symbol}
+                  </span>
+                  <select
+                    aria-label="Season"
+                    value={climate.season}
+                    disabled={!ready}
+                    onFocus={() => scene.current?.setPaused(true)}
+                    onBlur={() =>
+                      scene.current?.setPaused(!!selected || helpOpen)
+                    }
+                    onKeyDown={(event) => event.stopPropagation()}
+                    onChange={(event) => {
+                      const value = event.target.value as Season;
+                      scene.current?.setSeason(value);
+                      event.currentTarget.blur();
+                      host.current?.focus({ preventScroll: true });
+                      audio.play("click");
+                      setGuide(false);
+                    }}
+                  >
+                    {SEASONS.map((value) => (
+                      <option key={value} value={value}>
+                        {seasonDetails[value].label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={12} />
+                </span>
+              </label>
+              <div
+                className="village-clock"
+                role="timer"
+                aria-label={`Village time ${climate.clock}, ${climate.phase}`}
+                title="One complete day takes 8 minutes. Season changes keep the clock running."
+              >
+                <TimeIcon size={19} />
+                <time>{climate.clock}</time>
+                <span>{climate.phase}</span>
+              </div>
+            </div>
+            <p className="climate-weather">
+              {seasonDetails[climate.season].weather}
+            </p>
+            <div className="cycle-caption">
+              <span>8 MIN · 1 DAY</span>
+              <span className={climate.lightsOn ? "torch-status" : ""}>
+                {climate.lightsOn ? (
+                  <>
+                    <Flame size={10} />
+                    TORCH ON
+                  </>
+                ) : (
+                  "TIME FLOWS HERE"
+                )}
+              </span>
+            </div>
           </div>
           {guide && (
             <div className="world-overlay guide-card">
@@ -359,7 +434,7 @@ export default function App() {
                 setSound(v);
                 notify(
                   v
-                    ? "Village sounds on. A little birdsong for your journey."
+                    ? "Village sounds on. Listen to the season."
                     : "Village sounds off.",
                 );
               }}
@@ -580,6 +655,13 @@ export default function App() {
             Choose a destination below the world to track it. Trees, fences,
             houses and water are solid; bridges are your friends. On mobile, use
             the direction buttons or tap a path.
+          </p>
+          <p className="muted">
+            Change the season in the village climate panel. A full day passes in
+            8 minutes, with gradual dawn and dusk. Your torch and the
+            streetlights switch on automatically after sunset. Winter freezes
+            the water into walkable ice; if you change seasons while on the ice,
+            you'll return safely to the bank.
           </p>
           <button
             className="reset-discoveries"

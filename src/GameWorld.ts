@@ -1,5 +1,9 @@
 import Phaser from "phaser";
-import { registerArt, createWorldArt, rng, makeCanvas } from "./art";
+import { registerArt, createWorldArt } from "./art";
+import { ClimateController } from "./ClimateController";
+import type { Scenery } from "./ClimateController";
+import type { ClimateState, Season } from "./seasons";
+import { WATER_AREAS, navigationForSeason } from "./worldGeometry";
 import { destinations } from "./content";
 import type { DestinationId, Destination } from "./content";
 import {
@@ -8,6 +12,8 @@ import {
   findPath,
   WORLD_W,
   WORLD_H,
+  CELL,
+  nearestWalkable,
 } from "./pathfinding";
 import type { Point } from "./pathfinding";
 import { audio } from "./audio";
@@ -25,6 +31,7 @@ export interface WorldCallbacks {
   onTrack: (id: DestinationId | null) => void;
   onToast: (text: string) => void;
   onReady: (map: HTMLCanvasElement) => void;
+  onClimate: (state: ClimateState) => void;
 }
 export class VillageScene extends Phaser.Scene {
   private callbacks: WorldCallbacks;
@@ -45,7 +52,10 @@ export class VillageScene extends Phaser.Scene {
   private pausedInput = false;
   private ripples!: Phaser.GameObjects.Graphics;
   private labels = new Map<DestinationId, Phaser.GameObjects.Text>();
-  private fireflies: Phaser.GameObjects.Rectangle[] = [];
+  private climate!: ClimateController;
+  private scenery: Scenery[] = [];
+  private solidAreas: { x: number; y: number; w: number; h: number }[] = [];
+  private waterObstacles: Phaser.GameObjects.Zone[] = [];
   constructor(callbacks: WorldCallbacks) {
     super("Village");
     this.callbacks = callbacks;
@@ -53,33 +63,47 @@ export class VillageScene extends Phaser.Scene {
   create() {
     registerArt(this);
     const art = createWorldArt(this);
-    this.add.image(0, 0, "ground").setOrigin(0).setDepth(-10);
+    this.scenery.push({
+      key: "ground",
+      image: this.add.image(0, 0, "ground").setOrigin(0).setDepth(-10),
+    });
     this.physics.world.setBounds(67, 112, WORLD_W - 134, WORLD_H - 128);
     this.obstacles = this.physics.add.staticGroup();
     const solid = (x: number, y: number, w: number, h: number) => {
       const box = this.add.zone(x + w / 2, y + h / 2, w, h);
       this.obstacles.add(box);
+      this.solidAreas.push({ x, y, w, h });
       blockRect(this.grid, x - 6, y - 4, w + 12, h + 10);
     };
     solid(0, 0, WORLD_W, 116);
     solid(0, 0, 67, WORLD_H);
     solid(957, 0, 67, WORLD_H);
     solid(0, 752, WORLD_W, 16);
-    solid(0, 600, 477, 60);
-    solid(534, 600, 490, 60);
-    solid(59, 413, 84, 116);
-    solid(902, 299, 87, 233);
-    solid(818, 638, 161, 91);
+    for (const area of WATER_AREAS) {
+      const box = this.add.zone(
+        area.x + area.w / 2,
+        area.y + area.h / 2,
+        area.w,
+        area.h,
+      );
+      this.obstacles.add(box);
+      this.waterObstacles.push(box);
+      blockRect(this.grid, area.x - 6, area.y - 4, area.w + 12, area.h + 10);
+    }
     for (const d of art.decorations) {
-      this.add.image(d.x, d.y, d.key).setOrigin(0.5, 1).setDepth(d.y);
+      this.scenery.push({
+        key: d.key,
+        image: this.add.image(d.x, d.y, d.key).setOrigin(0.5, 1).setDepth(d.y),
+      });
       if (d.solid) solid(d.solid.x, d.solid.y, d.solid.w, d.solid.h);
     }
     art.fences.forEach((f) => solid(f.x, f.y, f.w, f.h));
     for (const d of destinations) {
-      this.add
+      const house = this.add
         .image(d.x, d.y - 8, `house-${d.roof}`)
         .setOrigin(0.5, 1)
         .setDepth(d.y - 8);
+      this.scenery.push({ key: `house-${d.roof}`, image: house });
       solid(d.x - 48, d.y - 67, 96, 52);
       const label = this.add
         .text(d.x, d.y > 400 ? d.y + 26 : d.y - 118, d.title.toUpperCase(), {
@@ -95,10 +119,15 @@ export class VillageScene extends Phaser.Scene {
       this.labels.set(d.id, label);
       this.add.rectangle(d.x, d.y + 5, 14, 5, 0xe8d8a3, 0.6).setDepth(0);
     }
-    this.add.image(504, 363, "fountain").setOrigin(0.5, 1).setDepth(363);
+    this.scenery.push({
+      key: "fountain",
+      image: this.add
+        .image(504, 363, "fountain")
+        .setOrigin(0.5, 1)
+        .setDepth(363),
+    });
     solid(481, 334, 46, 26);
     this.ripples = this.add.graphics().setDepth(10);
-    this.spawnWildlife();
     this.shadow = this.add.image(504, 394, "shadow").setDepth(392);
     this.player = this.physics.add
       .sprite(504, 393, "player-0-0")
@@ -151,89 +180,43 @@ export class VillageScene extends Phaser.Scene {
     camera.setRoundPixels(true);
     this.resize();
     this.scale.on("resize", () => this.resize());
-    // Build a static miniature from the exact same art used in the world.
-    const { c, ctx } = makeCanvas(1024, 768);
-    ctx.drawImage(art.ground, 0, 0);
-    const miniObjects = [
-      ...art.decorations.map((o) => ({ x: o.x, y: o.y, key: o.key })),
-      ...destinations.map((d) => ({
-        x: d.x,
-        y: d.y - 8,
-        key: `house-${d.roof}`,
-      })),
-      { x: 504, y: 363, key: "fountain" },
-    ].sort((a, b) => a.y - b.y);
-    miniObjects.forEach((o) => {
-      const source = this.textures
-        .get(o.key)
-        .getSourceImage() as HTMLCanvasElement;
-      ctx.drawImage(source, o.x - source.width / 2, o.y - source.height);
-    });
-    this.callbacks.onReady(c);
+    this.climate = new ClimateController(
+      this,
+      this.game.canvas.parentElement!,
+      this.scenery,
+      this.player,
+      this.callbacks.onReady,
+      this.callbacks.onClimate,
+    );
+  }
+  setSeason(season: Season) {
+    if (!this.climate) return;
+    this.path = [];
+    this.grid = navigationForSeason(this.solidAreas, season);
+    for (let i = 0; i < WATER_AREAS.length; i++) {
+      (this.waterObstacles[i].body as Phaser.Physics.Arcade.StaticBody).enable =
+        season !== "winter";
+    }
+    const safe = nearestWalkable(this.grid, this.player);
+    if (
+      safe &&
+      this.grid[Math.floor(this.player.y / CELL)]?.[
+        Math.floor(this.player.x / CELL)
+      ] !== 0
+    ) {
+      this.player.setPosition(safe.x, safe.y);
+      this.player.setVelocity(0);
+      this.callbacks.onToast(
+        "The ice has thawed. You are safely back on the bank.",
+      );
+    }
+    this.climate.setSeason(season);
   }
   private resize() {
     const { width, height } = this.scale;
     const zoom =
       width < 700 ? 1.65 : Math.max(width / 1024, Math.min(1.45, height / 490));
     this.cameras.main.setZoom(zoom);
-  }
-  private spawnWildlife() {
-    const r = rng(803);
-    for (const [key, x, y] of [
-      ["chicken", 339, 266],
-      ["chicken", 362, 278],
-      ["cat", 680, 377],
-      ["bird", 401, 402],
-      ["bird", 409, 395],
-      ["chicken", 676, 502],
-    ] as [string, number, number][]) {
-      const a = this.add.image(x, y, key).setOrigin(0.5, 1).setDepth(y);
-      this.tweens.add({
-        targets: a,
-        x: x + (r() > 0.5 ? 15 : -15),
-        y: y - 3,
-        duration: 1700 + r() * 1600,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.inOut",
-        delay: r() * 2500,
-        onUpdate: () => a.setDepth(a.y),
-      });
-    }
-    for (const [x, y] of [
-      [303, 361],
-      [719, 305],
-      [583, 541],
-      [168, 687],
-    ]) {
-      const b = this.add.image(x, y, "butterfly").setDepth(y + 100);
-      this.tweens.add({
-        targets: b,
-        x: x + 31,
-        y: y - 16,
-        scaleX: 0.3,
-        duration: 1700,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.inOut",
-      });
-    }
-    for (let i = 0; i < 16; i++) {
-      const f = this.add
-        .rectangle(100 + r() * 800, 180 + r() * 390, 2, 2, 0xf5ecc0, 0.6)
-        .setDepth(900);
-      this.tweens.add({
-        targets: f,
-        y: f.y - 18,
-        x: f.x + 10,
-        alpha: 0.1,
-        duration: 2400 + r() * 2500,
-        yoyo: true,
-        repeat: -1,
-        delay: r() * 3000,
-      });
-      this.fireflies.push(f);
-    }
   }
   private clickWorld(pointer: Phaser.Input.Pointer) {
     if (this.pausedInput) return;
@@ -368,17 +351,20 @@ export class VillageScene extends Phaser.Scene {
     for (const [id, label] of this.labels)
       label.setBackgroundColor(this.nearby?.id === id ? "#b28a42" : "#3d5949");
     this.ripples.clear();
-    this.ripples.lineStyle(1, 0xc0e4d4, 0.5);
-    for (let i = 0; i < 10; i++) {
-      const xx = 75 + i * 82 + Math.sin(time / 1800 + i) * 5,
-        yy = 618 + (i % 3) * 12;
-      this.ripples.lineBetween(xx, yy, xx + 11, yy);
-      this.ripples.lineBetween(xx + 5, yy + 3, xx + 17, yy + 3);
+    if (this.climate.season !== "winter") {
+      this.ripples.lineStyle(1, 0xc0e4d4, 0.5);
+      for (let i = 0; i < 10; i++) {
+        const xx = 75 + i * 82 + Math.sin(time / 1800 + i) * 5,
+          yy = 618 + (i % 3) * 12;
+        this.ripples.lineBetween(xx, yy, xx + 11, yy);
+        this.ripples.lineBetween(xx + 5, yy + 3, xx + 17, yy + 3);
+      }
+      this.ripples.fillStyle(0xe4efe0, 0.7);
+      const splash = Math.floor(time / 250) % 3;
+      this.ripples.fillRect(482 + splash * 6, 351, 2, 2);
+      this.ripples.fillRect(516 - splash * 2, 354, 2, 2);
     }
-    this.ripples.fillStyle(0xe4efe0, 0.7);
-    const splash = Math.floor(time / 250) % 3;
-    this.ripples.fillRect(482 + splash * 6, 351, 2, 2);
-    this.ripples.fillRect(516 - splash * 2, 354, 2, 2);
+    this.climate.update(this.direction);
     if (time > this.stateAt) {
       const target = destinations.find((d) => d.id === this.activeTarget);
       this.callbacks.onState({
