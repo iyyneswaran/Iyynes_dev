@@ -24,6 +24,16 @@ Open the Local URL printed by Vite. `npm run build` runs strict TypeScript check
 
 The six destinations contain About, Projects, Skills, Experience, Achievements, and Contact. Discovered places persist in browser local storage; the app also works when storage is unavailable. Native dialogs provide keyboard focus containment and Escape dismissal.
 
+## Missions: the lost keepsakes
+
+Open **Missions**, beside **Explore the world** in the top navigation, for a five-object scavenger hunt. Each reload selects **five random objects from a catalog of ten**: golden acorn, brass key, bluebird feather, map fragment, pocket lantern, rose quartz, wanderer’s compass, spotted mushroom, river shell, and star coin. Only those five spawn in the world. Walk up to a keepsake to collect it, or click it to walk over. The journal holds progress and optional area hints.
+
+**Inventory**, beside Missions, displays all ten pixel-art objects with **Found**, **Hidden this hunt**, or **Not in this hunt** status. Found status applies to the current hunt and resets on reload; changing seasons preserves it. Collecting the fifth active object automatically opens a pixel-art reward popup with your **Village Explorer badge** and the five recovered objects. The popup links to Inventory; the badge remains visible in Missions and Inventory for the rest of the hunt. Dialogs pause character movement and collection, and support close buttons and Escape.
+
+Each reload creates a fresh hunt with five different, reachable hiding areas. An object selected in both consecutive hunts changes area and moves at least 96 world pixels from its previous position. Only the last layout is remembered (using local storage with browser-history fallback); collection progress resets on reload. Objects stay on dry ground, remain in the same places during season changes, and are kept clear of roofs, trees, and other scenery that would conceal them completely.
+
+The movement guide now has an **X** button. You can restore it through **How to play**.
+
 ## Meet the villagers
 
 Four original characters roam the village: **Pip** the guide, **Mira** the gardener, **Rowan** the tinkerer, and **Fern** the courier. Each has a distinct animated sprite, portrait, personality, and branching conversation.
@@ -50,7 +60,7 @@ The **Season** dropdown changes the village in place without resetting your posi
 | Autumn | Amber foliage, drifting and fallen leaves, pumpkins, squirrels, and hedgehogs.                                            |
 | Winter | Snow-covered ground, trees, roofs, and fences; snowfall; frozen water with ice cracks; hares, cardinals, and a snowy owl. |
 
-Time starts at **10:00** and runs automatically: **8 real minutes = 24 village hours**. Dawn (05:00–08:00) and dusk (17:00–20:00) ease between daylight and night. The cycle continues while portfolio panels are open, and season changes do not restart it. Background tabs catch up to elapsed time when revisited.
+Time starts at **10:00** and runs automatically: **2 real minutes = 24 village hours**. Dusk begins after about 35 seconds and full night arrives after about 50 seconds, so short visits include the torch and streetlights. Dawn (05:00–08:00) and dusk (17:00–20:00) ease between daylight and night. The cycle continues while portfolio panels are open, and season changes do not restart it. Background tabs catch up to elapsed time when revisited.
 
 Streetlights and the character's carried torch switch on automatically as darkness builds, then turn off after sunrise. The torch moves with the character and adds light ahead of the direction they face. Lamps cast warm pools of light and house windows glow. Daytime wildlife retreats at night; an owl and seasonal fireflies become visible. The minimap keeps readable daytime colors while reflecting the selected season.
 
@@ -71,7 +81,7 @@ Edit the typed `projects` array in `src/content.tsx`. The Projects panel renders
 - `src/App.tsx`: React interface, tracking, sound controls, touch input, and portfolio dialogs.
 - `src/content.tsx`: portfolio content and typed project data.
 - `src/audio.ts`: original Web Audio sound effects; no external audio requests.
-- `src/seasons.ts`: typed season settings and the deterministic eight-minute daylight model.
+- `src/seasons.ts`: typed season settings and the deterministic two-minute daylight model.
 - `src/seasonalArt.ts`: cached seasonal sprite and terrain variants, plus seasonal wildlife sprites.
 - `src/ClimateController.ts`: weather, day/night lighting, torch, streetlights, wildlife, and seasonal minimap updates. Lighting and weather use a low-resolution, non-interactive overlay canvas rather than uploading a full-screen texture to the GPU every frame.
 - `src/worldGeometry.ts`: shared lamp positions, water geometry, and seasonal collision grids.
@@ -83,3 +93,5 @@ Edit the typed `projects` array in `src/content.tsx`. The Projects panel renders
 The artwork follows the supplied references' top-down village composition using original sprites. It is not an extraction or exact copy of the Pokémon maps. No backend, account, API key, CDN framework, or remote font service is required. All fonts are bundled locally through npm packages. Aseprite isn't required to run or edit the project; sprite generation is kept in source so assets remain editable without proprietary tooling.
 
 Deploy `dist/` to any static host. Nothing is automatically published.
+
+Mission source: `src/missions.ts` handles reachable randomized layouts and collection rules; `src/HuntController.ts` renders and collects objects; `src/MissionsDialog.tsx` contains the journal; `src/CollectionDialogs.tsx` contains Inventory and the reward popup; `src/collectibleArt.tsx` shares pixel artwork between the world and dialogs.

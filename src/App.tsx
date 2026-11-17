@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   ArrowUpRight,
   BookOpen,
+  Backpack,
   Check,
   Compass,
   Expand,
@@ -24,11 +25,20 @@ import { destinations, PortfolioContent } from "./content";
 import type { DestinationId } from "./content";
 import type { VillageScene, WorldState } from "./GameWorld";
 import { audio } from "./audio";
-import { initialClimate, SEASONS, seasonDetails } from "./seasons";
+import {
+  initialClimate,
+  SEASONS,
+  seasonDetails,
+  DAY_LENGTH_MINUTES,
+} from "./seasons";
 import type { ClimateState, Season } from "./seasons";
 import { villagers, villagerById } from "./villagers";
 import type { Conversation, DialogueChoice } from "./villagers";
 import { VillagerChat } from "./VillagerChat";
+import { MissionsDialog } from "./MissionsDialog";
+import { InventoryDialog, RewardDialog } from "./CollectionDialogs";
+import { emptyMission } from "./missions";
+import type { MissionState } from "./missions";
 
 const initial: WorldState = {
   x: 504,
@@ -53,6 +63,11 @@ export default function App() {
     [loadError, setLoadError] = useState(""),
     [welcome, setWelcome] = useState(true),
     [guide, setGuide] = useState(true),
+    [controlsVisible, setControlsVisible] = useState(true),
+    [missionsOpen, setMissionsOpen] = useState(false),
+    [inventoryOpen, setInventoryOpen] = useState(false),
+    [rewardOpen, setRewardOpen] = useState(false),
+    [mission, setMission] = useState<MissionState>(emptyMission),
     [sound, setSound] = useState(true),
     [mapExpanded, setMapExpanded] = useState(false),
     [tracked, setTracked] = useState<DestinationId | null>(null),
@@ -60,6 +75,13 @@ export default function App() {
     [helpOpen, setHelpOpen] = useState(false),
     [conversation, setConversation] = useState<Conversation | null>(null),
     [toast, setToast] = useState("");
+  const overlayOpen =
+    !!selected ||
+    helpOpen ||
+    !!conversation ||
+    missionsOpen ||
+    inventoryOpen ||
+    rewardOpen;
   const [visited, setVisited] = useState<DestinationId[]>(() => {
     try {
       const value = JSON.parse(localStorage.getItem("iyynes-visited") ?? "[]");
@@ -117,6 +139,10 @@ export default function App() {
           onToast: notify,
           onClimate: setClimate,
           onTalk: startConversation,
+          onMission: (next) => {
+            setMission(next);
+            if (next.complete) setRewardOpen(true);
+          },
           onReady: (map) => {
             mapImage.current = map;
             setReady(true);
@@ -145,20 +171,15 @@ export default function App() {
     }
   }, [visited]);
   useEffect(() => {
-    scene.current?.setPaused(!!selected || helpOpen || !!conversation);
+    scene.current?.setPaused(overlayOpen);
     if (selected && !dialog.current?.open) dialog.current?.showModal();
     if (!selected && dialog.current?.open) dialog.current.close();
     if (helpOpen && !help.current?.open) help.current?.showModal();
     if (!helpOpen && help.current?.open) help.current.close();
-  }, [selected, helpOpen, conversation]);
+  }, [selected, helpOpen, overlayOpen]);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (
-        event.key.toLowerCase() === "m" &&
-        !selected &&
-        !helpOpen &&
-        !conversation
-      ) {
+      if (event.key.toLowerCase() === "m" && !overlayOpen) {
         setMapExpanded((v) => !v);
       }
       if (event.key === "Escape") {
@@ -167,7 +188,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selected, helpOpen, conversation]);
+  }, [overlayOpen]);
   useEffect(() => {
     const ctx = mini.current?.getContext("2d");
     if (!ctx || !mini.current || !mapImage.current) return;
@@ -201,6 +222,20 @@ export default function App() {
   const closeHelp = () => {
     setHelpOpen(false);
     host.current?.focus({ preventScroll: true });
+  };
+  const closeMissions = () => {
+    setMissionsOpen(false);
+    requestAnimationFrame(() => host.current?.focus({ preventScroll: true }));
+  };
+  const closeInventory = () => {
+    setInventoryOpen(false);
+    audio.play("close");
+    requestAnimationFrame(() => host.current?.focus({ preventScroll: true }));
+  };
+  const closeReward = () => {
+    setRewardOpen(false);
+    audio.play("close");
+    requestAnimationFrame(() => host.current?.focus({ preventScroll: true }));
   };
   const closeConversation = () => {
     scene.current?.endConversation();
@@ -265,6 +300,34 @@ export default function App() {
             <i />
             Explore the world
           </span>
+          <button
+            className={`nav-missions ${missionsOpen ? "active" : ""} ${mission.complete ? "complete" : ""}`}
+            aria-haspopup="dialog"
+            aria-expanded={missionsOpen}
+            aria-label={`Missions, ${mission.foundCount} of 5 found`}
+            disabled={!ready}
+            onClick={() => {
+              setMissionsOpen(true);
+              audio.play("open");
+            }}
+          >
+            <Flag size={14} />
+            <span>Missions</span>
+            <em>{mission.foundCount}/5</em>
+          </button>
+          <button
+            className={`nav-missions nav-inventory ${inventoryOpen ? "active" : ""}`}
+            aria-haspopup="dialog"
+            aria-expanded={inventoryOpen}
+            disabled={!ready}
+            onClick={() => {
+              setInventoryOpen(true);
+              audio.play("open");
+            }}
+          >
+            <Backpack size={14} />
+            <span>Inventory</span>
+          </button>
           <button onClick={() => setHelpOpen(true)} className="text-button">
             How to play <ArrowUpRight size={14} />
           </button>
@@ -358,11 +421,7 @@ export default function App() {
                     value={climate.season}
                     disabled={!ready}
                     onFocus={() => scene.current?.setPaused(true)}
-                    onBlur={() =>
-                      scene.current?.setPaused(
-                        !!selected || helpOpen || !!conversation,
-                      )
-                    }
+                    onBlur={() => scene.current?.setPaused(overlayOpen)}
                     onKeyDown={(event) => event.stopPropagation()}
                     onChange={(event) => {
                       const value = event.target.value as Season;
@@ -386,7 +445,7 @@ export default function App() {
                 className="village-clock"
                 role="timer"
                 aria-label={`Village time ${climate.clock}, ${climate.phase}`}
-                title="One complete day takes 8 minutes. Season changes keep the clock running."
+                title={`One complete day takes ${DAY_LENGTH_MINUTES} minutes. Night arrives about 50 seconds after you start.`}
               >
                 <TimeIcon size={19} />
                 <time>{climate.clock}</time>
@@ -397,7 +456,7 @@ export default function App() {
               {seasonDetails[climate.season].weather}
             </p>
             <div className="cycle-caption">
-              <span>8 MIN · 1 DAY</span>
+              <span>{DAY_LENGTH_MINUTES} MIN · 1 DAY</span>
               <span className={climate.lightsOn ? "torch-status" : ""}>
                 {climate.lightsOn ? (
                   <>
@@ -422,24 +481,36 @@ export default function App() {
               </button>
             </div>
           )}
-          <div className="world-overlay controls-hint">
-            <span className="wasd">
-              <kbd>W</kbd>
-              <span>
-                <kbd>A</kbd>
-                <kbd>S</kbd>
-                <kbd>D</kbd>
+          {controlsVisible && (
+            <div className="world-overlay controls-hint">
+              <button
+                className="controls-close"
+                aria-label="Hide movement controls"
+                onClick={() => {
+                  setControlsVisible(false);
+                  host.current?.focus({ preventScroll: true });
+                }}
+              >
+                <X size={12} />
+              </button>
+              <span className="wasd">
+                <kbd>W</kbd>
+                <span>
+                  <kbd>A</kbd>
+                  <kbd>S</kbd>
+                  <kbd>D</kbd>
+                </span>
               </span>
-            </span>
-            <div>
-              Move around<span>or click a path</span>
+              <div>
+                Move around<span>or click a path</span>
+              </div>
+              <i />
+              <kbd>E</kbd>
+              <div>
+                Interact<span>when you're nearby</span>
+              </div>
             </div>
-            <i />
-            <kbd>E</kbd>
-            <div>
-              Interact<span>when you're nearby</span>
-            </div>
-          </div>
+          )}
           <div
             className={`world-overlay map-card ${mapExpanded ? "expanded" : ""}`}
           >
@@ -667,6 +738,23 @@ export default function App() {
           VIEW GITHUB <ArrowUpRight size={12} />
         </a>
       </footer>
+      {missionsOpen && (
+        <MissionsDialog mission={mission} onClose={closeMissions} />
+      )}
+      {inventoryOpen && (
+        <InventoryDialog mission={mission} onClose={closeInventory} />
+      )}
+      {rewardOpen && (
+        <RewardDialog
+          mission={mission}
+          onClose={closeReward}
+          onInventory={() => {
+            setRewardOpen(false);
+            setInventoryOpen(true);
+            audio.play("open");
+          }}
+        />
+      )}
       {conversation && (
         <VillagerChat
           conversation={conversation}
@@ -761,10 +849,10 @@ export default function App() {
           </p>
           <p className="muted">
             Change the season in the village climate panel. A full day passes in
-            8 minutes, with gradual dawn and dusk. Your torch and the
-            streetlights switch on automatically after sunset. Winter freezes
-            the water into walkable ice; if you change seasons while on the ice,
-            you'll return safely to the bank.
+            {DAY_LENGTH_MINUTES} minutes, with gradual dawn and dusk. Your torch
+            and the streetlights switch on automatically after sunset. Winter
+            freezes the water into walkable ice; if you change seasons while on
+            the ice, you'll return safely to the bank.
           </p>
           <p className="muted">
             Meet Pip, Mira, Rowan, and Fern around the village. Press E near a
@@ -773,6 +861,25 @@ export default function App() {
             your map. Villagers wait during your conversation and return to
             their walk when you say goodbye.
           </p>
+          <p className="muted">
+            Open Missions in the top navigation to begin a five-keepsake
+            scavenger hunt. Walk up to objects to collect them, and check the
+            journal for hints. Each reload hides five random treasures from a
+            collection of ten. Inventory shows the whole collection and your
+            found status for this hunt. Find all five to earn your Village
+            Explorer badge and open the reward popup.
+          </p>
+          {!controlsVisible && (
+            <button
+              className="controls-restore"
+              onClick={() => {
+                setControlsVisible(true);
+                closeHelp();
+              }}
+            >
+              Show movement controls
+            </button>
+          )}
           <button
             className="reset-discoveries"
             onClick={() => {

@@ -7,7 +7,8 @@ export const SEASONS = [
 ] as const;
 export type Season = (typeof SEASONS)[number];
 export type DayPhase = "Dawn" | "Day" | "Dusk" | "Night";
-export const DAY_LENGTH_MS = 8 * 60 * 1000;
+export const DAY_LENGTH_MINUTES = 2;
+export const DAY_LENGTH_MS = DAY_LENGTH_MINUTES * 60 * 1000;
 export const START_HOUR = 10;
 export interface Daylight {
   hour: number;

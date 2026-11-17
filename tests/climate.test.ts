@@ -9,11 +9,16 @@ import {
 import { navigationForSeason, WATER_AREAS } from "../src/worldGeometry";
 import { CELL, nearestWalkable, findPath } from "../src/pathfinding";
 describe("automatic village time", () => {
-  it("starts in summer daylight and completes exactly one day in eight minutes", () => {
+  it("starts in summer daylight and completes exactly one day in two minutes", () => {
     expect(initialClimate.season).toBe("summer");
     expect(daylightAfter(0).clock).toBe("10:00");
     expect(daylightAfter(0).lightsOn).toBe(false);
-    expect(DAY_LENGTH_MS).toBe(480000);
+    expect(DAY_LENGTH_MS).toBe(120000);
+    expect(daylightAfter(50000)).toMatchObject({
+      phase: "Night",
+      lightsOn: true,
+      clock: "20:00",
+    });
     expect(daylightAfter(DAY_LENGTH_MS)).toEqual(daylightAfter(0));
     expect(daylightAfter(DAY_LENGTH_MS / 2)).toMatchObject({
       clock: "22:00",

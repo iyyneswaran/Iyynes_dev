@@ -21,6 +21,8 @@ import { isWithinReach } from "./interactions";
 import { VillagerController } from "./VillagerController";
 import type { VillagerPosition } from "./VillagerController";
 import type { Conversation, VillagerId } from "./villagers";
+import { HuntController } from "./HuntController";
+import type { MissionState } from "./missions";
 export interface WorldState {
   x: number;
   y: number;
@@ -38,6 +40,7 @@ export interface WorldCallbacks {
   onReady: (map: HTMLCanvasElement) => void;
   onClimate: (state: ClimateState) => void;
   onTalk: (conversation: Conversation) => void;
+  onMission: (mission: MissionState) => void;
 }
 export class VillageScene extends Phaser.Scene {
   private callbacks: WorldCallbacks;
@@ -62,6 +65,7 @@ export class VillageScene extends Phaser.Scene {
   private labels = new Map<DestinationId, Phaser.GameObjects.Text>();
   private climate!: ClimateController;
   private villagers!: VillagerController;
+  private hunt!: HuntController;
   private scenery: Scenery[] = [];
   private solidAreas: { x: number; y: number; w: number; h: number }[] = [];
   private waterObstacles: Phaser.GameObjects.Zone[] = [];
@@ -208,6 +212,22 @@ export class VillageScene extends Phaser.Scene {
       },
       onToast: this.callbacks.onToast,
     });
+    const hidingExclusions = this.scenery
+      .filter((item) => item.key !== "ground")
+      .map(({ image }) => ({
+        x: image.x - image.displayOriginX,
+        y: image.y - image.displayOriginY,
+        w: image.width,
+        h: image.height,
+      }));
+    this.hunt = new HuntController(
+      this,
+      navigationForSeason(this.solidAreas, "summer"),
+      this.player,
+      hidingExclusions,
+      this.callbacks.onMission,
+      this.callbacks.onToast,
+    );
   }
   setSeason(season: Season) {
     if (!this.climate) return;
@@ -250,6 +270,17 @@ export class VillageScene extends Phaser.Scene {
       return;
     }
     this.villagers.cancelApproach();
+    const keepsake = this.hunt.hit(p);
+    if (keepsake) {
+      this.path = findPath(
+        this.villagers.navigationGrid(this.player),
+        this.player,
+        keepsake,
+      );
+      if (!this.path.length)
+        this.callbacks.onToast("Walk a little closer to that keepsake.");
+      return;
+    }
     const building = destinations.find(
       (d) => Math.abs(p.x - d.x) < 62 && p.y > d.y - 127 && p.y < d.y + 6,
     );
@@ -455,6 +486,7 @@ export class VillageScene extends Phaser.Scene {
     }
     this.climate.update(this.direction);
     this.villagers.update(time, delta, this.player, !this.pausedInput);
+    this.hunt.update(this.player, this.grid, !this.pausedInput);
     if (time > this.stateAt) {
       const target = destinations.find((d) => d.id === this.activeTarget);
       const npc = this.villagers.closest(this.player);
