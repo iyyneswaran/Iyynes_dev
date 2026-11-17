@@ -1,0 +1,322 @@
+.map-card.expanded {
+  max-height: calc(100% - 38px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b1bf95 #f8f5e5;
+}
+.map-villagers {
+  border-top: 1px dashed #d3dbc1;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.map-villagers > span {
+  font: 5px var(--pixel);
+  color: #98a580;
+  letter-spacing: 0.3px;
+}
+.map-villagers > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 9px;
+}
+.map-villagers button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  background: #eff1dd;
+  border: 1px solid #dce2c8;
+  padding: 7px;
+}
+.map-villagers button > i {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+}
+.map-villagers button > span {
+  font-size: 10px;
+  color: #768965;
+}
+.map-villagers small {
+  display: block;
+  font-size: 7px;
+  color: #a1aa8d;
+  margin-top: 3px;
+}
+.map-villagers button > b {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: #a4b28d;
+}
+.villager-dialog {
+  width: min(650px, calc(100vw - 35px));
+}
+.villager-chat-body {
+  padding: 25px 30px 28px;
+}
+.villager-introduction {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  margin-bottom: 23px;
+}
+.villager-portrait {
+  width: 75px;
+  height: 75px;
+  flex-shrink: 0;
+  border: 2px solid #cbd4b3;
+  background: linear-gradient(#e1e9cd, #eff1da);
+  box-shadow: 3px 3px #e1e6cd;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.villager-portrait:after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  background: var(--villager-color);
+  opacity: 0.4;
+}
+.villager-portrait img {
+  display: block;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+.villager-introduction .section-kicker {
+  font-size: 6px;
+  line-height: 1.8;
+  margin: 0 0 7px;
+  color: var(--villager-color);
+}
+.villager-introduction h2 {
+  font: 38px/0.85 var(--display);
+  margin: 0;
+  color: #526847;
+  letter-spacing: -0.4px;
+}
+.villager-introduction h2 > span {
+  color: var(--villager-color);
+}
+.chat-weather {
+  margin-left: auto;
+  align-self: center;
+  text-align: right;
+  font-size: 10px;
+  color: #9aa17e;
+  white-space: nowrap;
+}
+.chat-weather small {
+  display: block;
+  font-size: 8px;
+  margin-top: 8px;
+  color: #a5ab91;
+}
+.villager-speech {
+  position: relative;
+  border: 1px solid #d5dcc0;
+  background: #f3f2df;
+  padding: 20px 23px 23px;
+  box-shadow: 2px 2px #e7ead3;
+  min-height: 126px;
+  display: flex;
+  align-items: center;
+}
+.villager-speech:before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 29px;
+  width: 12px;
+  height: 12px;
+  background: #f3f2df;
+  border-left: 1px solid #d5dcc0;
+  border-top: 1px solid #d5dcc0;
+  transform: rotate(45deg);
+}
+.villager-speech p {
+  font-size: 13px;
+  line-height: 1.95;
+  color: #7b8768;
+  position: relative;
+  margin: 0;
+  z-index: 1;
+}
+.speech-mark {
+  position: absolute;
+  left: 7px;
+  top: 0;
+  font: 43px var(--display);
+  color: #d4dbbd;
+  line-height: 1;
+}
+.speech-caret {
+  position: absolute;
+  bottom: 7px;
+  right: 10px;
+  font-size: 7px;
+  color: var(--villager-color);
+}
+.reply-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0 11px;
+}
+.reply-heading > span {
+  font: 6px var(--pixel);
+  letter-spacing: 0.5px;
+  color: #a0aa87;
+}
+.reply-heading > i {
+  height: 1px;
+  background: #e1e5ce;
+  flex: 1;
+}
+.villager-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.villager-replies > button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 12px 13px;
+  border: 1px solid #dce1c7;
+  background: #faf8e8;
+  box-shadow: 2px 2px #e7ead4;
+  color: #82916e;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.villager-replies > button:hover,
+.villager-replies > button:focus-visible {
+  background: #eaf0d8;
+  border-color: #a9bb8e;
+  color: #5f7d4b;
+  filter: none;
+}
+.reply-number {
+  font: 7px var(--pixel);
+  color: #afb995;
+  align-self: flex-start;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.reply-arrow {
+  margin-left: auto;
+  color: #a5b48d;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.villager-prompt > button {
+  background: #f5f1da;
+  border-color: #8c9c6c;
+}
+@media (max-width: 700px) {
+  .villager-chat-body {
+    padding: 22px 19px;
+  }
+  .villager-introduction {
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .villager-portrait {
+    width: 63px;
+    height: 63px;
+  }
+  .villager-portrait img {
+    width: 54px;
+    height: 54px;
+  }
+  .villager-introduction h2 {
+    font-size: 33px;
+  }
+  .villager-introduction .section-kicker {
+    font-size: 5px;
+    letter-spacing: 0;
+  }
+  .chat-weather {
+    font-size: 8px;
+  }
+  .chat-weather small {
+    font-size: 6px;
+    margin-top: 6px;
+  }
+  .villager-speech {
+    padding: 17px 18px 22px;
+    min-height: 130px;
+  }
+  .villager-speech p {
+    font-size: 11px;
+    line-height: 1.9;
+  }
+  .villager-replies > button {
+    padding: 10px;
+    gap: 10px;
+    font-size: 10px;
+  }
+  .reply-number {
+    font-size: 6px;
+  }
+  .reply-heading {
+    margin-top: 20px;
+  }
+  .villager-dialog .dialog-chrome > span {
+    font-size: 5px;
+  }
+  .villager-dialog .dialog-chrome > span > svg {
+    width: 11px;
+  }
+  .villager-dialog .dialog-footer > span {
+    font-size: 4px;
+    max-width: 100px;
+  }
+  .villager-dialog .dialog-footer > button {
+    font-size: 8px;
+  }
+}
+@media (max-height: 760px) and (min-width: 701px) {
+  .villager-chat-body {
+    padding: 19px 24px 21px;
+  }
+  .villager-introduction {
+    margin-bottom: 18px;
+    gap: 14px;
+  }
+  .villager-portrait {
+    width: 64px;
+    height: 64px;
+  }
+  .villager-portrait img {
+    width: 54px;
+    height: 54px;
+  }
+  .villager-introduction h2 {
+    font-size: 34px;
+  }
+  .villager-speech {
+    min-height: 96px;
+    padding: 16px 20px 20px;
+  }
+  .reply-heading {
+    margin: 18px 0 9px;
+  }
+  .villager-replies {
+    gap: 6px;
+  }
+  .villager-replies > button {
+    padding: 9px 12px;
+  }
+  .villager-dialog .dialog-footer {
+    padding: 11px 18px;
+  }
+}

@@ -118,7 +118,11 @@ export class VillageAudio {
     o.start(c.currentTime + time);
     o.stop(c.currentTime + time + duration);
   }
-  play(type: "open" | "close" | "step" | "discover" | "click") {
+  play(type: "open" | "close" | "step" | "discover" | "click" | "talk") {
+    if (type === "talk") {
+      this.tone(740, 0, 0.07, 0.012, "triangle");
+      this.tone(880, 0.07, 0.09, 0.012, "triangle");
+    }
     if (type === "step") this.tone(90, 0, 0.035, 0.008, "triangle");
     if (type === "click") this.tone(440, 0, 0.08, 0.015);
     if (type === "close") {

@@ -24,6 +24,20 @@ Open the Local URL printed by Vite. `npm run build` runs strict TypeScript check
 
 The six destinations contain About, Projects, Skills, Experience, Achievements, and Contact. Discovered places persist in browser local storage; the app also works when storage is unavailable. Native dialogs provide keyboard focus containment and Escape dismissal.
 
+## Meet the villagers
+
+Four original characters roam the village: **Pip** the guide, **Mira** the gardener, **Rowan** the tinkerer, and **Fern** the courier. Each has a distinct animated sprite, portrait, personality, and branching conversation.
+
+- Press **E / Enter** near a villager or use the **Talk** prompt. Villagers must be nearby and in clear line of sight.
+- Click a distant villager to walk to a reachable spot beside them. They wait for you and the conversation opens when you arrive. Keyboard movement, clicking elsewhere, or opening another panel cancels the approach.
+- Automatic walking accounts for other villagers and replans if someone steps into your route.
+- The expanded minimap also has a **Meet the villagers** section: select a name to find and walk over to that villager.
+- Choose replies about their story, the current season, a joke, or places to explore. Returning visitors receive a different greeting; greetings also reflect dawn, day, dusk, or night.
+- Ask for directions to put a gold marker on a portfolio destination. Buildings still require reaching the front door to enter.
+- Say goodbye or press **Escape** to leave. The villager resumes walking after a short pause, while other villagers continue their routines during your chat.
+
+Villagers navigate around solid scenery and stay on dry ground, including during winter. Evening routes bring them nearer their homes and village lights. They appear as colored dots on the minimap. Conversations are authored locally; no backend or external conversation service is required.
+
 ## Seasons and village time
 
 The **Season** dropdown changes the village in place without resetting your position, tracked destination, discoveries, or clock. Summer is the default.
@@ -61,6 +75,10 @@ Edit the typed `projects` array in `src/content.tsx`. The Projects panel renders
 - `src/seasonalArt.ts`: cached seasonal sprite and terrain variants, plus seasonal wildlife sprites.
 - `src/ClimateController.ts`: weather, day/night lighting, torch, streetlights, wildlife, and seasonal minimap updates. Lighting and weather use a low-resolution, non-interactive overlay canvas rather than uploading a full-screen texture to the GPU every frame.
 - `src/worldGeometry.ts`: shared lamp positions, water geometry, and seasonal collision grids.
+- `src/villagers.ts`: villager identities, daily routes, and typed dialogue branches. Edit this file to add dialogue or change recommendations.
+- `src/VillagerController.ts`: roaming, yielding, proximity, approach-to-talk, and conversation holds.
+- `src/villagerNavigation.ts`: line-of-sight and reachable conversation positions.
+- `src/villagerArt.ts` and `src/VillagerChat.tsx`: original sprites, portraits, and the accessible React dialogue window.
 
 The artwork follows the supplied references' top-down village composition using original sprites. It is not an extraction or exact copy of the Pokémon maps. No backend, account, API key, CDN framework, or remote font service is required. All fonts are bundled locally through npm packages. Aseprite isn't required to run or edit the project; sprite generation is kept in source so assets remain editable without proprietary tooling.
 

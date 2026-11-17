@@ -26,6 +26,9 @@ interface Mote {
 /** Weather and light share a low-resolution screen canvas. It never intercepts game input. */
 export class ClimateController {
   season: Season = "summer";
+  get state(): ClimateState {
+    return { ...this.daylight, season: this.season };
+  }
   private scene: Phaser.Scene;
   private scenery: Scenery[];
   private onMap: (map: HTMLCanvasElement) => void;

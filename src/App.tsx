@@ -26,11 +26,16 @@ import type { VillageScene, WorldState } from "./GameWorld";
 import { audio } from "./audio";
 import { initialClimate, SEASONS, seasonDetails } from "./seasons";
 import type { ClimateState, Season } from "./seasons";
+import { villagers, villagerById } from "./villagers";
+import type { Conversation, DialogueChoice } from "./villagers";
+import { VillagerChat } from "./VillagerChat";
 
 const initial: WorldState = {
   x: 504,
   y: 393,
   nearby: null,
+  nearbyNpc: null,
+  villagers: villagers.map((npc) => ({ id: npc.id, ...npc.start })),
   distance: 0,
   moving: false,
 };
@@ -53,6 +58,7 @@ export default function App() {
     [tracked, setTracked] = useState<DestinationId | null>(null),
     [selected, setSelected] = useState<DestinationId | null>(null),
     [helpOpen, setHelpOpen] = useState(false),
+    [conversation, setConversation] = useState<Conversation | null>(null),
     [toast, setToast] = useState("");
   const [visited, setVisited] = useState<DestinationId[]>(() => {
     try {
@@ -80,6 +86,11 @@ export default function App() {
       return [...old, id];
     });
   }, []);
+  const startConversation = useCallback((chat: Conversation) => {
+    setConversation(chat);
+    setGuide(false);
+    audio.play("talk");
+  }, []);
   useEffect(() => {
     audio.arm();
     const unlock = () => audio.unlock();
@@ -105,6 +116,7 @@ export default function App() {
           onTrack: setTracked,
           onToast: notify,
           onClimate: setClimate,
+          onTalk: startConversation,
           onReady: (map) => {
             mapImage.current = map;
             setReady(true);
@@ -124,7 +136,7 @@ export default function App() {
       scene.current = null;
       clearTimeout(toastTimer.current);
     };
-  }, [enter, notify]);
+  }, [enter, notify, startConversation]);
   useEffect(() => {
     try {
       localStorage.setItem("iyynes-visited", JSON.stringify(visited));
@@ -133,15 +145,20 @@ export default function App() {
     }
   }, [visited]);
   useEffect(() => {
-    scene.current?.setPaused(!!selected || helpOpen);
+    scene.current?.setPaused(!!selected || helpOpen || !!conversation);
     if (selected && !dialog.current?.open) dialog.current?.showModal();
     if (!selected && dialog.current?.open) dialog.current.close();
     if (helpOpen && !help.current?.open) help.current?.showModal();
     if (!helpOpen && help.current?.open) help.current.close();
-  }, [selected, helpOpen]);
+  }, [selected, helpOpen, conversation]);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "m" && !selected && !helpOpen) {
+      if (
+        event.key.toLowerCase() === "m" &&
+        !selected &&
+        !helpOpen &&
+        !conversation
+      ) {
         setMapExpanded((v) => !v);
       }
       if (event.key === "Escape") {
@@ -150,7 +167,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selected, helpOpen]);
+  }, [selected, helpOpen, conversation]);
   useEffect(() => {
     const ctx = mini.current?.getContext("2d");
     if (!ctx || !mini.current || !mapImage.current) return;
@@ -167,6 +184,10 @@ export default function App() {
         ctx.strokeRect(d.x * sx - 4, d.y * sy - 4, 8, 8);
       }
     });
+    for (const resident of state.villagers) {
+      ctx.fillStyle = villagerById(resident.id).color;
+      ctx.fillRect(resident.x * sx - 1.5, resident.y * sy - 1.5, 3, 3);
+    }
     ctx.fillStyle = "#fff7dc";
     ctx.fillRect(state.x * sx - 3, state.y * sy - 3, 6, 6);
     ctx.fillStyle = "#b76047";
@@ -180,6 +201,30 @@ export default function App() {
   const closeHelp = () => {
     setHelpOpen(false);
     host.current?.focus({ preventScroll: true });
+  };
+  const closeConversation = () => {
+    scene.current?.endConversation();
+    setConversation(null);
+    audio.play("close");
+    requestAnimationFrame(() => host.current?.focus({ preventScroll: true }));
+  };
+  const chooseReply = (choice: DialogueChoice) => {
+    if (!conversation) return;
+    if (choice.close) {
+      closeConversation();
+      return;
+    }
+    if (choice.destination) scene.current?.track(choice.destination);
+    audio.play("talk");
+    setConversation({
+      ...conversation,
+      topic: choice.next ?? "hello",
+      context: {
+        ...conversation.context,
+        season: climate.season,
+        phase: climate.phase,
+      },
+    });
   };
   const track = (id: DestinationId) => {
     if (!ready) return;
@@ -199,6 +244,7 @@ export default function App() {
     place = destinations.find((d) => d.id === selected);
   const TimeIcon =
     climate.phase === "Night" ? Moon : climate.phase === "Day" ? Sun : Sunrise;
+  const nearbyVillager = state.nearbyNpc ? villagerById(state.nearbyNpc) : null;
   return (
     <>
       <header className="site-header">
@@ -209,9 +255,9 @@ export default function App() {
           </span>
           <span>
             <strong>
-              IYYNES' WORLD<span className="brand-dot">.</span>
+              IYYNESWARAN'S WORLD<span className="brand-dot">.</span>
             </strong>
-            <small>AN INTERACTIVE PORTFOLIO</small>
+            {/* <small>AN INTERACTIVE PORTFOLIO</small> */}
           </span>
         </a>
         <nav className="header-nav" aria-label="Main navigation">
@@ -313,7 +359,9 @@ export default function App() {
                     disabled={!ready}
                     onFocus={() => scene.current?.setPaused(true)}
                     onBlur={() =>
-                      scene.current?.setPaused(!!selected || helpOpen)
+                      scene.current?.setPaused(
+                        !!selected || helpOpen || !!conversation,
+                      )
                     }
                     onKeyDown={(event) => event.stopPropagation()}
                     onChange={(event) => {
@@ -367,7 +415,7 @@ export default function App() {
               <span className="guide-spark">✧</span>
               <p>
                 <b>Your next little adventure</b>
-                <span>Walk to a building to discover what's inside.</span>
+                <span>Explore the buildings. Say hello to the villagers.</span>
               </p>
               <button onClick={() => setGuide(false)} aria-label="Dismiss tip">
                 <X size={14} />
@@ -413,7 +461,7 @@ export default function App() {
               ref={mini}
               width={256}
               height={176}
-              aria-label="Village map with your current location"
+              aria-label="Village map with your current location and roaming villagers"
             />
             <div className="map-caption">
               <span>
@@ -425,15 +473,40 @@ export default function App() {
               </span>
             </div>
             {mapExpanded && (
-              <div className="map-legend">
-                {destinations.map((d) => (
-                  <button onClick={() => track(d.id)} key={d.id}>
-                    <i style={{ background: d.color }} />
-                    {d.title}
-                    {visited.includes(d.id) && <Check size={12} />}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="map-legend">
+                  {destinations.map((d) => (
+                    <button onClick={() => track(d.id)} key={d.id}>
+                      <i style={{ background: d.color }} />
+                      {d.title}
+                      {visited.includes(d.id) && <Check size={12} />}
+                    </button>
+                  ))}
+                </div>
+                <div className="map-villagers">
+                  <span>MEET THE VILLAGERS</span>
+                  <div>
+                    {villagers.map((npc) => (
+                      <button
+                        key={npc.id}
+                        aria-label={`Find and talk to ${npc.name}`}
+                        onClick={() => {
+                          setMapExpanded(false);
+                          scene.current?.approachVillager(npc.id);
+                          host.current?.focus({ preventScroll: true });
+                        }}
+                      >
+                        <i style={{ background: npc.color }} />
+                        <span>
+                          {npc.name}
+                          <small>{npc.role}</small>
+                        </span>
+                        <b>↗</b>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </div>
           <div className="world-tools">
@@ -485,13 +558,25 @@ export default function App() {
               </button>
             </div>
           )}
-          {nearby && (
-            <div className="interaction-prompt">
-              <span>{nearby.place}</span>
+          {nearbyVillager ? (
+            <div className="interaction-prompt villager-prompt">
+              <span>
+                {nearbyVillager.name} · {nearbyVillager.role}
+              </span>
               <button onClick={() => scene.current?.interact()}>
-                <kbd>E</kbd>Step inside <span>↵</span>
+                <kbd>E</kbd>Talk to {nearbyVillager.name}
+                <span>↵</span>
               </button>
             </div>
+          ) : (
+            nearby && (
+              <div className="interaction-prompt">
+                <span>{nearby.place}</span>
+                <button onClick={() => scene.current?.interact()}>
+                  <kbd>E</kbd>Step inside <span>↵</span>
+                </button>
+              </div>
+            )
           )}
           <div
             className={`toast ${toast ? "visible" : ""}`}
@@ -582,6 +667,13 @@ export default function App() {
           VIEW GITHUB <ArrowUpRight size={12} />
         </a>
       </footer>
+      {conversation && (
+        <VillagerChat
+          conversation={conversation}
+          onClose={closeConversation}
+          onChoose={chooseReply}
+        />
+      )}
       <dialog
         ref={dialog}
         className="pixel-dialog"
@@ -673,6 +765,13 @@ export default function App() {
             streetlights switch on automatically after sunset. Winter freezes
             the water into walkable ice; if you change seasons while on the ice,
             you'll return safely to the bank.
+          </p>
+          <p className="muted">
+            Meet Pip, Mira, Rowan, and Fern around the village. Press E near a
+            villager to chat, or click one to walk over and say hello. Choose
+            your replies, ask about the season, or get a destination marked on
+            your map. Villagers wait during your conversation and return to
+            their walk when you say goodbye.
           </p>
           <button
             className="reset-discoveries"

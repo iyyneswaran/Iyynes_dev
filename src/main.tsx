@@ -8,6 +8,7 @@ import "@fontsource/dm-sans/latin-600.css";
 import "./styles.css";
 import "./refinements.css";
 import "./climate.css";
+import "./villagers.css";
 import App from "./App";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

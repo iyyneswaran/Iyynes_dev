@@ -18,10 +18,15 @@ import {
 import type { Point } from "./pathfinding";
 import { audio } from "./audio";
 import { isWithinReach } from "./interactions";
+import { VillagerController } from "./VillagerController";
+import type { VillagerPosition } from "./VillagerController";
+import type { Conversation, VillagerId } from "./villagers";
 export interface WorldState {
   x: number;
   y: number;
   nearby: DestinationId | null;
+  nearbyNpc: VillagerId | null;
+  villagers: VillagerPosition[];
   distance: number;
   moving: boolean;
 }
@@ -32,6 +37,7 @@ export interface WorldCallbacks {
   onToast: (text: string) => void;
   onReady: (map: HTMLCanvasElement) => void;
   onClimate: (state: ClimateState) => void;
+  onTalk: (conversation: Conversation) => void;
 }
 export class VillageScene extends Phaser.Scene {
   private callbacks: WorldCallbacks;
@@ -40,6 +46,8 @@ export class VillageScene extends Phaser.Scene {
   private obstacles!: Phaser.Physics.Arcade.StaticGroup;
   private grid = createGrid();
   private path: Point[] = [];
+  private pathProgressAt = 0;
+  private pathProgress: Point = { x: 504, y: 393 };
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private stepAt = 0;
   private stateAt = 0;
@@ -53,6 +61,7 @@ export class VillageScene extends Phaser.Scene {
   private ripples!: Phaser.GameObjects.Graphics;
   private labels = new Map<DestinationId, Phaser.GameObjects.Text>();
   private climate!: ClimateController;
+  private villagers!: VillagerController;
   private scenery: Scenery[] = [];
   private solidAreas: { x: number; y: number; w: number; h: number }[] = [];
   private waterObstacles: Phaser.GameObjects.Zone[] = [];
@@ -188,6 +197,17 @@ export class VillageScene extends Phaser.Scene {
       this.callbacks.onReady,
       this.callbacks.onClimate,
     );
+    this.villagers = new VillagerController(this, this.player, this.obstacles, {
+      dryGrid: navigationForSeason(this.solidAreas, "summer"),
+      playerGrid: () => this.grid,
+      climate: () => this.climate.state,
+      onTalk: (conversation) => {
+        this.path = [];
+        this.player.setVelocity(0);
+        this.callbacks.onTalk(conversation);
+      },
+      onToast: this.callbacks.onToast,
+    });
   }
   setSeason(season: Season) {
     if (!this.climate) return;
@@ -211,6 +231,9 @@ export class VillageScene extends Phaser.Scene {
       );
     }
     this.climate.setSeason(season);
+    this.villagers.navigationChanged(
+      navigationForSeason(this.solidAreas, "summer"),
+    );
   }
   private resize() {
     const { width, height } = this.scale;
@@ -221,11 +244,17 @@ export class VillageScene extends Phaser.Scene {
   private clickWorld(pointer: Phaser.Input.Pointer) {
     if (this.pausedInput || pointer.event?.target !== this.game.canvas) return;
     const p = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const npc = this.villagers.hit(p);
+    if (npc) {
+      this.approachVillager(npc);
+      return;
+    }
+    this.villagers.cancelApproach();
     const building = destinations.find(
       (d) => Math.abs(p.x - d.x) < 62 && p.y > d.y - 127 && p.y < d.y + 6,
     );
     if (building) {
-      if (this.nearby?.id === building.id) this.interact();
+      if (isWithinReach(this.player, building)) this.enterBuilding(building);
       else {
         this.track(building.id);
         this.callbacks.onToast(
@@ -234,7 +263,11 @@ export class VillageScene extends Phaser.Scene {
       }
       return;
     }
-    this.path = findPath(this.grid, { x: this.player.x, y: this.player.y }, p);
+    this.path = findPath(
+      this.villagers.navigationGrid(this.player),
+      { x: this.player.x, y: this.player.y },
+      p,
+    );
     if (!this.path.length) {
       this.callbacks.onToast("Try an open patch of grass or a path.");
       return;
@@ -250,6 +283,7 @@ export class VillageScene extends Phaser.Scene {
     audio.play("click");
   }
   track(id: DestinationId | null) {
+    this.villagers?.cancelApproach();
     this.activeTarget = id;
     this.callbacks.onTrack(id);
     const d = destinations.find((d) => d.id === id);
@@ -271,6 +305,7 @@ export class VillageScene extends Phaser.Scene {
     this.pausedInput = value;
     if (this.input.keyboard) this.input.keyboard.enabled = !value;
     this.path = [];
+    if (value) this.villagers?.cancelApproach();
     this.touch.clear();
     if (this.player) this.player.setVelocity(0);
     if (this.keys) Object.values(this.keys).forEach((k) => k.reset());
@@ -280,22 +315,74 @@ export class VillageScene extends Phaser.Scene {
     else this.touch.delete(direction);
   }
   resetPlayer() {
+    this.villagers.cancelApproach();
     this.path = [];
     this.player.setPosition(504, 393);
     this.player.setVelocity(0);
     this.track(null);
     this.callbacks.onToast("Home sweet village square.");
   }
+  private enterBuilding(destination: Destination) {
+    if (!this.pausedInput && isWithinReach(this.player, destination)) {
+      this.path = [];
+      this.villagers.cancelApproach();
+      this.player.setVelocity(0);
+      this.callbacks.onEnter(destination.id);
+    }
+  }
+  endConversation() {
+    this.villagers.endConversation();
+  }
+  approachVillager(id: VillagerId) {
+    if (this.pausedInput) return;
+    this.path = [];
+    this.track(null);
+    if (!this.villagers.talk(id, this.player))
+      this.path = this.villagers.approach(id, this.player);
+  }
   interact() {
-    if (this.nearby && !this.pausedInput) {
+    if (this.pausedInput) return;
+    const building = destinations.find((d) => isWithinReach(this.player, d));
+    const npc = this.villagers.closest(this.player);
+    const buildingDistance = building
+      ? Math.hypot(building.x - this.player.x, building.y + 10 - this.player.y)
+      : Infinity;
+    if (npc && npc.distance < buildingDistance) {
       this.path = [];
       this.player.setVelocity(0);
-      this.callbacks.onEnter(this.nearby.id);
-    } else if (!this.pausedInput)
-      this.callbacks.onToast("Get a little closer to a building’s front door.");
+      this.villagers.talk(npc.id, this.player);
+    } else if (building) this.enterBuilding(building);
+    else
+      this.callbacks.onToast(
+        "Walk closer to a villager or a building’s front door.",
+      );
   }
   update(time: number, delta: number) {
     if (!this.player) return;
+    if (!this.path.length || this.pausedInput) {
+      this.pathProgressAt = time;
+      this.pathProgress = { x: this.player.x, y: this.player.y };
+    } else if (time - this.pathProgressAt > 750) {
+      if (
+        Math.hypot(
+          this.player.x - this.pathProgress.x,
+          this.player.y - this.pathProgress.y,
+        ) < 3
+      ) {
+        this.path = this.villagers.reroutePlayer(
+          this.player,
+          this.path[this.path.length - 1],
+        );
+        if (!this.path.length) {
+          this.villagers.cancelApproach();
+          this.callbacks.onToast(
+            "The path is busy. Try another spot or wait for the villagers to pass.",
+          );
+        }
+      }
+      this.pathProgressAt = time;
+      this.pathProgress = { x: this.player.x, y: this.player.y };
+    }
     let vx = 0,
       vy = 0;
     if (!this.pausedInput) {
@@ -313,8 +400,10 @@ export class VillageScene extends Phaser.Scene {
         (this.keys.W.isDown || this.keys.UP.isDown || this.touch.has("up")
           ? 1
           : 0);
-      if (vx || vy) this.path = [];
-      else if (this.path.length) {
+      if (vx || vy) {
+        this.path = [];
+        this.villagers.cancelApproach();
+      } else if (this.path.length) {
         const next = this.path[0],
           dx = next.x - this.player.x,
           dy = next.y - this.player.y;
@@ -365,12 +454,23 @@ export class VillageScene extends Phaser.Scene {
       this.ripples.fillRect(516 - splash * 2, 354, 2, 2);
     }
     this.climate.update(this.direction);
+    this.villagers.update(time, delta, this.player, !this.pausedInput);
     if (time > this.stateAt) {
       const target = destinations.find((d) => d.id === this.activeTarget);
+      const npc = this.villagers.closest(this.player);
+      const buildingDistance = this.nearby
+        ? Math.hypot(
+            this.nearby.x - this.player.x,
+            this.nearby.y + 10 - this.player.y,
+          )
+        : Infinity;
+      const npcFirst = !!npc && npc.distance < buildingDistance;
       this.callbacks.onState({
         x: Math.round(this.player.x),
         y: Math.round(this.player.y),
-        nearby: this.nearby?.id ?? null,
+        nearby: npcFirst ? null : (this.nearby?.id ?? null),
+        nearbyNpc: npcFirst ? npc!.id : null,
+        villagers: this.villagers.positions(),
         distance: target
           ? Math.round(
               Math.hypot(target.x - this.player.x, target.y - this.player.y),
