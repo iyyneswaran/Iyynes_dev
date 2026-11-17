@@ -18,7 +18,7 @@ Open the Local URL printed by Vite. `npm run build` runs strict TypeScript check
 - **E / Enter / click a nearby building:** open that destination's portfolio panel. You must reach its front door, including on return visits.
 - **Destination buttons:** track a building with a gold marker; they don't bypass the proximity requirement.
 - **M:** expand the minimap. **Esc:** close a panel or expanded map.
-- **Speaker:** opt in to synthesized chiptune interaction sounds, footfalls, and occasional birdsong. Sound starts only after user interaction.
+- **Speaker:** sound is ON by default, with synthesized interaction sounds, footsteps, and seasonal ambience. Browser autoplay rules defer playback until the first click, tap, or key press; use the speaker button to mute or unmute.
 - **Home:** return to the village square.
 - Mobile has a touch direction pad as well as tap-to-walk.
 
@@ -28,12 +28,12 @@ The six destinations contain About, Projects, Skills, Experience, Achievements, 
 
 The **Season** dropdown changes the village in place without resetting your position, tracked destination, discoveries, or clock. Summer is the default.
 
-| Season | Environment |
-| --- | --- |
-| Summer | Original sunny village, butterflies, chickens, and birds. |
-| Spring | Fresh leaves, pink cherry trees, tulips and daffodils, drifting petals, nests, returning birds, rabbits, and hedgehogs. |
-| Rainy | Animated rain and splashes, puddles, lush foliage, mushrooms, ducks, and frogs. |
-| Autumn | Amber foliage, drifting and fallen leaves, pumpkins, squirrels, and hedgehogs. |
+| Season | Environment                                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Summer | Original sunny village, butterflies, chickens, and birds.                                                                 |
+| Spring | Fresh leaves, pink cherry trees, tulips and daffodils, drifting petals, nests, returning birds, rabbits, and hedgehogs.   |
+| Rainy  | Animated rain and splashes, puddles, lush foliage, mushrooms, ducks, and frogs.                                           |
+| Autumn | Amber foliage, drifting and fallen leaves, pumpkins, squirrels, and hedgehogs.                                            |
 | Winter | Snow-covered ground, trees, roofs, and fences; snowfall; frozen water with ice cracks; hares, cardinals, and a snowy owl. |
 
 Time starts at **10:00** and runs automatically: **8 real minutes = 24 village hours**. Dawn (05:00–08:00) and dusk (17:00–20:00) ease between daylight and night. The cycle continues while portfolio panels are open, and season changes do not restart it. Background tabs catch up to elapsed time when revisited.

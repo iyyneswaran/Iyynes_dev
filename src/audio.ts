@@ -1,8 +1,9 @@
 import type { Season } from "./seasons";
 // Original synthesized chiptune effects and weather ambience; no remote assets or autoplay.
-class VillageAudio {
-  enabled = false;
+export class VillageAudio {
+  enabled = true;
   private context: AudioContext | null = null;
+  private output: GainNode | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private season: Season = "summer";
   private night = false;
@@ -40,7 +41,7 @@ class VillageAudio {
     gain.gain.value = this.season === "rainy" ? 0.022 : 0.012;
     noise.connect(filter);
     filter.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(this.output!);
     noise.start();
     this.noise = noise;
     this.noiseGain = gain;
@@ -59,19 +60,38 @@ class VillageAudio {
       this.tone(1397, 0.16, 0.13, 0.006, "sine");
     }
   }
+  /** Default preference can be armed without creating an autoplay-blocked context. */
+  arm() {
+    this.enabled = true;
+  }
+  /** Called from a trusted pointer/key gesture; repeated gestures don't create extra loops. */
+  unlock() {
+    if (!this.enabled) return;
+    const fresh = !this.context;
+    if (!this.context) {
+      this.context = new AudioContext();
+      this.output = this.context.createGain();
+      this.output.connect(this.context.destination);
+    }
+    void this.context.resume().catch(() => {
+      /* A later user gesture can retry. */
+    });
+    this.output!.gain.setTargetAtTime(1, this.context.currentTime, 0.01);
+    if (!this.timer) this.timer = setInterval(() => this.ambience(), 9000);
+    if (fresh) {
+      this.updateWeather();
+      this.play("open");
+    }
+  }
   setEnabled(value: boolean) {
+    this.enabled = value;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.enabled = value;
     if (value) {
-      this.context ??= new AudioContext();
-      void this.context.resume();
-      this.play("open");
-      this.timer = setInterval(() => this.ambience(), 9000);
-    } else {
-      if (this.timer) clearInterval(this.timer);
-      this.timer = null;
-    }
+      this.unlock();
+      this.play("click");
+    } else
+      this.output?.gain.setTargetAtTime(0, this.context!.currentTime, 0.01);
     this.updateWeather();
   }
   private tone(
@@ -94,7 +114,7 @@ class VillageAudio {
       c.currentTime + time + duration,
     );
     o.connect(g);
-    g.connect(c.destination);
+    g.connect(this.output!);
     o.start(c.currentTime + time);
     o.stop(c.currentTime + time + duration);
   }
@@ -121,6 +141,11 @@ class VillageAudio {
     this.noise?.stop();
     this.noise?.disconnect();
     void this.context?.close();
+    this.context = null;
+    this.output = null;
+    this.timer = null;
+    this.noise = null;
+    this.noiseGain = null;
   }
 }
 export const audio = new VillageAudio();

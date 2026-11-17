@@ -219,7 +219,7 @@ export class VillageScene extends Phaser.Scene {
     this.cameras.main.setZoom(zoom);
   }
   private clickWorld(pointer: Phaser.Input.Pointer) {
-    if (this.pausedInput) return;
+    if (this.pausedInput || pointer.event?.target !== this.game.canvas) return;
     const p = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const building = destinations.find(
       (d) => Math.abs(p.x - d.x) < 62 && p.y > d.y - 127 && p.y < d.y + 6,
@@ -397,6 +397,7 @@ export function createGame(parent: HTMLElement, callbacks: WorldCallbacks) {
       height: parent.clientHeight,
     },
     physics: { default: "arcade", arcade: { debug: false } },
+    input: { windowEvents: false },
     scene,
     render: { powerPreference: "high-performance" },
     audio: { noAudio: true },

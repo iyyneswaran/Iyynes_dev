@@ -48,7 +48,7 @@ export default function App() {
     [loadError, setLoadError] = useState(""),
     [welcome, setWelcome] = useState(true),
     [guide, setGuide] = useState(true),
-    [sound, setSound] = useState(false),
+    [sound, setSound] = useState(true),
     [mapExpanded, setMapExpanded] = useState(false),
     [tracked, setTracked] = useState<DestinationId | null>(null),
     [selected, setSelected] = useState<DestinationId | null>(null),
@@ -79,6 +79,17 @@ export default function App() {
       audio.play("discover");
       return [...old, id];
     });
+  }, []);
+  useEffect(() => {
+    audio.arm();
+    const unlock = () => audio.unlock();
+    document.addEventListener("pointerdown", unlock, true);
+    document.addEventListener("keydown", unlock, true);
+    return () => {
+      document.removeEventListener("pointerdown", unlock, true);
+      document.removeEventListener("keydown", unlock, true);
+      audio.setEnabled(false);
+    };
   }, []);
   useEffect(() => {
     let cancelled = false;
